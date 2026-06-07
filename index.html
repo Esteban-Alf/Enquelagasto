@@ -396,6 +396,10 @@ input,select,textarea{font-family:inherit;font-size:16px}
 
 <div id="toast"></div>
 
+<div class="sheet-bg" id="modalBg" style="align-items:center;z-index:95">
+  <div class="card" id="modalCard" style="max-width:400px;width:calc(100% - 40px);border-radius:20px;padding:22px"></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =========================================================
@@ -444,17 +448,17 @@ const db = {
     if(USE_SUPABASE){
       const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{nombre}}});
       if(error) throw error;
-      return data.user;
+      return data; // {user, session}
     }
-    const u={id:uid(),email,nombre:nombre||email.split('@')[0]}; demo.seed(u); return u;
+    const u={id:uid(),email,nombre:nombre||email.split('@')[0]}; demo.seed(u); return {user:u,session:{demo:true}};
   },
   async signIn(email,pass){
     if(USE_SUPABASE){
       const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
       if(error) throw error;
-      return data.user;
+      return data; // {user, session}
     }
-    const u={id:uid(),email,nombre:email.split('@')[0]}; demo.seed(u); return u;
+    const u={id:uid(),email,nombre:email.split('@')[0]}; demo.seed(u); return {user:u,session:{demo:true}};
   },
   async signOut(){ if(USE_SUPABASE) await sb.auth.signOut(); demo.user=null; },
   async currentUser(){
@@ -498,6 +502,13 @@ const db = {
   async deleteMovimiento(id){
     if(USE_SUPABASE){ const {error}=await sb.from('movimientos').delete().eq('id',id); if(error) throw error; return; }
     demo.movimientos = demo.movimientos.filter(m=>m.id!==id);
+  },
+  async updateMovimiento(id,patch){
+    if(USE_SUPABASE){
+      const {data,error}=await sb.from('movimientos').update(patch).eq('id',id).select().single();
+      if(error) throw error; return data;
+    }
+    const m=demo.movimientos.find(x=>x.id===id); if(m) Object.assign(m,patch); return m;
   }
 };
 
@@ -535,12 +546,13 @@ async function doAuth(){
   if(!email||!pass){ authError('Completá email y contraseña.'); return; }
   const btn=document.getElementById('authBtn'); btn.disabled=true; btn.textContent='...';
   try{
-    const u = authMode==='register' ? await db.signUp(email,pass,nombre) : await db.signIn(email,pass);
-    if(!u){ // supabase puede pedir confirmar email
+    const data = authMode==='register' ? await db.signUp(email,pass,nombre) : await db.signIn(email,pass);
+    if(!data || !data.session){ // sin sesión = falta confirmar email
       const e=document.getElementById('authMsg'); e.className='auth-msg ok';
-      e.textContent='Revisá tu email para confirmar la cuenta.'; btn.disabled=false; btn.textContent='Crear cuenta'; return;
+      e.textContent='Cuenta creada. Confirmá el email que te llegó y volvé a ingresar. (O en Supabase → Authentication → Sign In/Providers, desactivá "Confirm email" para entrar directo.)';
+      btn.disabled=false; btn.textContent= authMode==='register'?'Crear cuenta':'Ingresar'; return;
     }
-    await enterApp(u);
+    await enterApp(data.user);
   }catch(err){
     authError(err.message||'Error de autenticación.');
     btn.disabled=false; btn.textContent= authMode==='register'?'Crear cuenta':'Ingresar';
@@ -710,7 +722,7 @@ function renderDashboard(){
 
       <div class="card">
         <div class="card-h"><h3>Próximos vencimientos</h3>${venc.length?`<span class="link" onclick="go('vencimientos')">Ver todos</span>`:''}</div>
-        ${venc.length? venc.map(vencRow).join('')
+        ${venc.length? venc.map(m=>vencRow(m,false)).join('')
           : `<div class="empty"><div class="big">✅</div>Nada por vencer</div>`}
       </div>
     </div>
@@ -762,8 +774,9 @@ function movRowDel(m){
      </button>\n  </div>`);
 }
 async function delMov(id){
-  if(!confirm('¿Eliminar este movimiento?')) return;
-  await db.deleteMovimiento(id); await refreshData(); render(); toast('Movimiento eliminado');
+  if(!(await uiConfirm('¿Eliminar este movimiento?'))) return;
+  try{ await db.deleteMovimiento(id); await refreshData(); render(); toast('Movimiento eliminado'); }
+  catch(err){ uiAlert('No se pudo eliminar:\n\n'+(err.message||err)); }
 }
 
 /* ---- VENCIMIENTOS ---- */
@@ -775,7 +788,7 @@ function upcoming(){
     .filter(m=>m._days>=-3)
     .sort((a,b)=>a._d-b._d);
 }
-function vencRow(m){
+function vencRow(m, actions){
   const cls = m._days<0?'due': m._days<=3?'due': m._days<=7?'soon':'';
   const lab = m._days<0?`Venció hace ${-m._days}d` : m._days===0?'Vence hoy' : m._days===1?'Mañana' : `En ${m._days} días`;
   const d=m._d||new Date(m.fecha_vencimiento+'T12:00:00');
@@ -783,17 +796,26 @@ function vencRow(m){
     <div class="when"><div class="d num">${d.getDate()}</div><div class="m">${d.toLocaleDateString(CONFIG.LOCALE,{month:'short'})}</div></div>
     <div class="mv-body">
       <div class="t" style="font-weight:700">${m.comentario||catName(m.categoria_id)}</div>
-      <div class="s"><b>${lab}</b> · ${catName(m.categoria_id)} ${m.ambito==='compartido'?'<span class="chip share">Compartido</span>':''}</div>
+      <div class="s"><b>${lab}</b> · ${catName(m.categoria_id)} ${m.ambito==='compartido'?'<span class="chip share">Compartido</span>':''} ${m.es_fijo&&m.frecuencia!=='unico'?'<span class="chip fix">'+m.frecuencia+'</span>':''}</div>
     </div>
-    <div class="mv-amt txt-out">${fmt(m.importe)}</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px">
+      <div class="mv-amt txt-out">${fmt(m.importe)}</div>
+      ${actions?`<div style="display:flex;gap:6px">
+        <button class="chip" style="background:var(--emerald);color:#fff;padding:5px 12px" onclick="pagarVenc('${m.id}')">Pagar</button>
+        <button class="chip" style="padding:5px 9px" onclick="delMov('${m.id}')">✕</button>
+      </div>`:''}
+    </div>
   </div>`;
 }
 function renderVencimientos(){
   const list=upcoming();
   document.getElementById('content').innerHTML=`
     <div class="view-title">Vencimientos</div>
-    <p style="color:var(--ink-soft);margin:-8px 0 18px">Pagos con fecha de vencimiento que se vienen.</p>
-    ${list.length? list.map(vencRow).join('') : `<div class="card"><div class="empty"><div class="big">📅</div>No tenés pagos con fecha de vencimiento.<br><span style="font-size:13px">Cargá un gasto fijo o único con fecha y aparece acá.</span></div></div>`}`;
+    <div class="controls-row" style="justify-content:space-between;align-items:center">
+      <p style="color:var(--ink-soft);margin:0;font-size:14px">Servicios y pagos fijos con fecha (alquiler, luz, gas, internet…).</p>
+      <button class="btn-next" style="padding:11px 16px;border-radius:12px;font-weight:700;white-space:nowrap" onclick="openVenc()">＋ Agregar</button>
+    </div>
+    ${list.length? list.map(m=>vencRow(m,true)).join('') : `<div class="card"><div class="empty"><div class="big">📅</div>No tenés vencimientos cargados.<br><span style="font-size:13px">Tocá "Agregar" para sumar un servicio o pago fijo.</span></div></div>`}`;
 }
 
 /* ---- CONFIG ---- */
@@ -841,12 +863,17 @@ async function addCat(tipo){
   const input=document.getElementById(tipo==='gasto'?'newGasto':'newIngreso');
   const nombre=input.value.trim(); if(!nombre) return;
   const color=PALETTE[state.categorias.length % PALETTE.length];
-  await db.createCategoria({nombre,tipo,color});
-  await refreshData(); render(); toast('Categoría añadida');
+  try{
+    await db.createCategoria({nombre,tipo,color});
+    await refreshData(); render(); toast('Categoría añadida ✓');
+  }catch(err){
+    uiAlert('No se pudo guardar la categoría:\n\n'+(err.message||err)+'\n\nVerificá que hayas corrido el schema.sql en Supabase y que estés con sesión iniciada.');
+  }
 }
 async function delCat(id){
-  if(!confirm('¿Eliminar categoría? Los movimientos viejos quedan sin categoría.')) return;
-  await db.deleteCategoria(id); await refreshData(); render(); toast('Categoría eliminada');
+  if(!(await uiConfirm('¿Eliminar categoría? Los movimientos viejos quedan sin categoría.'))) return;
+  try{ await db.deleteCategoria(id); await refreshData(); render(); toast('Categoría eliminada'); }
+  catch(err){ uiAlert('No se pudo eliminar:\n\n'+(err.message||err)); }
 }
 
 /* =========================================================
@@ -967,10 +994,12 @@ async function wizNext(){
   await saveWiz();
 }
 async function wizAddCatPrompt(){
-  const nombre=prompt('Nombre de la nueva categoría:'); if(!nombre||!nombre.trim()) return;
+  const nombre=await uiPrompt('Nueva categoría de '+wiz.tipo,'Nombre de la categoría'); if(!nombre) return;
   const color=PALETTE[state.categorias.length % PALETTE.length];
-  const row=await db.createCategoria({nombre:nombre.trim(),tipo:wiz.tipo,color});
-  await refreshData(); wiz.categoria_id=row.id; renderWiz();
+  try{
+    const row=await db.createCategoria({nombre,tipo:wiz.tipo,color});
+    await refreshData(); wiz.categoria_id=row.id; renderWiz();
+  }catch(err){ uiAlert('No se pudo crear la categoría:\n\n'+(err.message||err)); }
 }
 function wizPhoto(input){
   const f=input.files[0]; if(!f) return;
@@ -1003,9 +1032,134 @@ async function saveWiz(){
     await refreshData(); closeWizard(); render();
     toast(wiz.tipo==='ingreso'?'Ingreso cargado ✓':'Gasto cargado ✓');
   }catch(err){
-    alert('Error al guardar: '+(err.message||err));
+    uiAlert('No se pudo guardar:\n\n'+(err.message||err)+'\n\nVerificá el schema.sql en Supabase y que tengas sesión iniciada.');
     n.disabled=false; n.textContent='Guardar';
   }
+}
+
+/* =========================================================
+   MODALES PROPIOS (reemplazan prompt/confirm/alert)
+   ========================================================= */
+let _modalResolve=null;
+function uiModal({title,body,buttons}){
+  return new Promise(res=>{
+    _modalResolve=res;
+    const card=document.getElementById('modalCard');
+    card.innerHTML=`
+      <h3 style="font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin:0 0 12px;letter-spacing:-.01em">${title}</h3>
+      <div id="modalBody">${body}</div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        ${buttons.map((b,i)=>`<button data-i="${i}" class="${b.primary?'btn-next':'btn-back'}" style="flex:1;padding:12px;border-radius:12px;font-weight:700">${b.label}</button>`).join('')}
+      </div>`;
+    card.querySelectorAll('button[data-i]').forEach(btn=>{
+      btn.onclick=()=>{ const b=buttons[+btn.dataset.i]; closeModal(b.getValue?b.getValue():b.value); };
+    });
+    document.getElementById('modalBg').classList.add('show');
+    const inp=card.querySelector('input');
+    if(inp){ setTimeout(()=>inp.focus(),120);
+      inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); card.querySelector('button[data-i="'+(buttons.length-1)+'"]').click(); } });
+    }
+  });
+}
+function closeModal(val){
+  document.getElementById('modalBg').classList.remove('show');
+  if(_modalResolve){ const r=_modalResolve; _modalResolve=null; r(val); }
+}
+document.getElementById('modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg') closeModal(null); });
+function uiAlert(msg,title){
+  return uiModal({title:title||'Aviso', body:`<p style="margin:0;color:var(--ink-soft);font-size:14.5px;line-height:1.5;white-space:pre-line">${msg}</p>`, buttons:[{label:'Entendido',primary:true,value:true}]});
+}
+function uiConfirm(msg,title){
+  return uiModal({title:title||'Confirmar', body:`<p style="margin:0;color:var(--ink-soft);font-size:14.5px;line-height:1.5;white-space:pre-line">${msg}</p>`, buttons:[{label:'Cancelar',value:false},{label:'Sí',primary:true,value:true}]});
+}
+function uiPrompt(title,placeholder){
+  const body=`<input id="modalInput" placeholder="${placeholder||''}" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);outline:none">`;
+  return uiModal({title, body, buttons:[
+    {label:'Cancelar',value:null},
+    {label:'Guardar',primary:true,getValue:()=>{const v=document.getElementById('modalInput').value.trim();return v||null;}}
+  ]});
+}
+
+/* =========================================================
+   VENCIMIENTOS — alta y "marcar pagado" (recurrente)
+   ========================================================= */
+let vencForm=null;
+function openVenc(){
+  const cats=state.categorias.filter(c=>c.tipo==='gasto');
+  vencForm={ categoria_id: cats[0]?cats[0].id:'', ambito:'compartido' };
+  renderVencForm();
+}
+function renderVencForm(){
+  const cats=state.categorias.filter(c=>c.tipo==='gasto');
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`
+    <h3 style="font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin:0 0 4px;letter-spacing:-.01em">Nuevo vencimiento</h3>
+    <p style="color:var(--ink-soft);font-size:13px;margin:0 0 8px">Servicios o pagos fijos con fecha: alquiler, luz, gas, internet…</p>
+    <div class="frm">
+      <label>Nombre del pago</label>
+      <input id="vfNombre" placeholder="Ej: Luz, Gas, Alquiler">
+      <label>Categoría</label>
+      <select id="vfCat">${cats.length? cats.map(c=>`<option value="${c.id}" ${vencForm.categoria_id===c.id?'selected':''}>${c.nombre}</option>`).join('') : '<option value="">(creá una categoría de gasto primero)</option>'}</select>
+      <label>Importe</label>
+      <input id="vfImporte" type="number" inputmode="decimal" placeholder="0">
+      <label>Ámbito</label>
+      <div class="toggle2">
+        <button type="button" id="vfAmbInd" class="${vencForm.ambito==='individual'?'sel':''}" onclick="vencForm.ambito='individual';document.getElementById('vfAmbInd').classList.add('sel');document.getElementById('vfAmbCom').classList.remove('sel')">👤 Individual</button>
+        <button type="button" id="vfAmbCom" class="${vencForm.ambito==='compartido'?'sel':''}" onclick="vencForm.ambito='compartido';document.getElementById('vfAmbCom').classList.add('sel');document.getElementById('vfAmbInd').classList.remove('sel')">👥 Compartido</button>
+      </div>
+      <label>Frecuencia</label>
+      <select id="vfFreq">
+        <option value="mensual">Mensual</option>
+        <option value="semanal">Semanal</option>
+        <option value="anual">Anual</option>
+        <option value="unico">Único (no se repite)</option>
+      </select>
+      <label>Próximo vencimiento</label>
+      <input id="vfFecha" type="date" value="${todayISO()}">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn-back" style="flex:1;padding:12px;border-radius:12px;font-weight:700" onclick="closeModal(null)">Cancelar</button>
+      <button class="btn-next" style="flex:1;padding:12px;border-radius:12px;font-weight:700" onclick="saveVenc()">Guardar</button>
+    </div>`;
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(()=>{const n=document.getElementById('vfNombre');n&&n.focus()},120);
+}
+async function saveVenc(){
+  const nombre=document.getElementById('vfNombre').value.trim();
+  const categoria_id=document.getElementById('vfCat').value||null;
+  const importe=Number(document.getElementById('vfImporte').value);
+  const frecuencia=document.getElementById('vfFreq').value;
+  const fecha=document.getElementById('vfFecha').value;
+  if(!nombre){ uiAlert('Poné un nombre (ej: Luz).'); return; }
+  if(!(importe>0)){ uiAlert('Poné un importe mayor a 0.'); return; }
+  if(!fecha){ uiAlert('Elegí la fecha de vencimiento.'); return; }
+  try{
+    await db.createMovimiento({
+      tipo:'gasto', importe, categoria_id, comentario:nombre, ambito:vencForm.ambito,
+      es_fijo: frecuencia!=='unico', frecuencia, fecha, fecha_vencimiento:fecha, foto:null
+    });
+    await refreshData(); closeModal(null); render(); toast('Vencimiento agregado ✓');
+  }catch(err){ uiAlert('No se pudo guardar:\n\n'+(err.message||err)); }
+}
+function nextDate(iso,freq){
+  const d=new Date(iso+'T12:00:00');
+  if(freq==='semanal') d.setDate(d.getDate()+7);
+  else if(freq==='anual') d.setFullYear(d.getFullYear()+1);
+  else d.setMonth(d.getMonth()+1);
+  return d.toISOString().slice(0,10);
+}
+async function pagarVenc(id){
+  const m=state.movimientos.find(x=>x.id===id); if(!m) return;
+  const nm=m.comentario||catName(m.categoria_id);
+  if(!(await uiConfirm(`¿Registrar el pago de "${nm}"?\n\nQueda como gasto de hoy${(m.es_fijo&&m.frecuencia!=='unico')?' y se agenda el próximo vencimiento.':'.'}`))) return;
+  try{
+    await db.updateMovimiento(id,{ fecha:todayISO(), fecha_vencimiento:null });
+    if(m.es_fijo && m.frecuencia && m.frecuencia!=='unico'){
+      const prox=nextDate(m.fecha_vencimiento, m.frecuencia);
+      await db.createMovimiento({ tipo:'gasto', importe:m.importe, categoria_id:m.categoria_id, comentario:m.comentario, ambito:m.ambito, es_fijo:true, frecuencia:m.frecuencia, fecha:prox, fecha_vencimiento:prox, foto:null });
+    }
+    await refreshData(); render(); toast('Pago registrado ✓');
+  }catch(err){ uiAlert('No se pudo registrar el pago:\n\n'+(err.message||err)); }
 }
 
 /* =========================================================
