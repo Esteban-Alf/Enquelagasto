@@ -138,8 +138,8 @@ input,select,textarea{font-family:inherit;font-size:16px}
 .grid{display:grid;gap:14px}
 .kpis{grid-template-columns:repeat(2,1fr)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
-.kpi .lbl{font-size:12.5px;font-weight:600;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:7px}
-.kpi .val{font-family:'Fraunces',serif;font-weight:600;font-size:30px;letter-spacing:-.02em;margin-top:8px}
+.kpi .lbl{font-size:11.5px;font-weight:600;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:7px;line-height:1.2}
+.kpi .val{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(21px,6.2vw,30px);letter-spacing:-.02em;margin-top:8px;overflow-wrap:anywhere;line-height:1.05}
 .kpi .val.num{font-family:'Fraunces',serif}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .dot.in{background:var(--emerald)} .dot.out{background:var(--coral)} .dot.bal{background:var(--amber)}
@@ -196,17 +196,26 @@ input,select,textarea{font-family:inherit;font-size:16px}
   backdrop-filter:blur(14px);border-top:1px solid var(--line);
   display:flex;align-items:center;padding:6px 6px calc(6px + env(safe-area-inset-bottom));
 }
-.bottomnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;color:var(--ink-faint);font-size:10.5px;font-weight:600}
-.bottomnav button.on{color:var(--emerald)}
-.bottomnav button svg{width:23px;height:23px}
-.fab-wrap{flex:1;display:flex;justify-content:center}
+.bottomnav>button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;color:var(--ink-faint);font-size:10.5px;font-weight:600}
+.bottomnav>button.on{color:var(--emerald)}
+.bottomnav>button svg{width:23px;height:23px}
+.fab-wrap{flex:0 0 auto;display:flex;justify-content:center;width:76px}
 .fab{
-  width:54px;height:54px;border-radius:50%;background:var(--emerald);color:#fff;
-  display:grid;place-items:center;box-shadow:0 6px 18px rgba(14,107,78,.4);margin-top:-22px;
-  transition:.15s;
+  flex:0 0 auto;width:60px;height:60px;border-radius:50%;
+  background:linear-gradient(145deg,#168a64 0%,#0E6B4E 60%,#0a5840 100%);color:#fff;
+  display:grid;place-items:center;margin-top:-26px;
+  box-shadow:0 8px 22px rgba(14,107,78,.42), 0 2px 6px rgba(14,107,78,.3);
+  border:4px solid var(--bg);transition:transform .15s, box-shadow .15s;
 }
-.fab:active{transform:scale(.93)}
-.fab svg{width:26px;height:26px}
+.fab:hover{box-shadow:0 10px 28px rgba(14,107,78,.5)}
+.fab:active{transform:scale(.92)}
+.fab svg{width:28px;height:28px;stroke-width:2.4}
+/* modal adaptable */
+#modalCard{display:flex;flex-direction:column;max-height:90vh;overflow:hidden}
+.m-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:22px 22px 6px}
+.m-scroll h3{font-family:'Fraunces',serif;font-weight:600;font-size:20px;margin:0 0 10px;letter-spacing:-.01em}
+.m-foot{display:flex;gap:10px;padding:14px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line-soft);background:var(--card)}
+.m-foot button{flex:1;padding:13px;border-radius:13px;font-weight:700;font-size:15px}
 
 /* ---------------- WIZARD / MODAL ---------------- */
 .sheet-bg{position:fixed;inset:0;z-index:60;background:rgba(27,26,22,.45);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -364,6 +373,9 @@ input,select,textarea{font-family:inherit;font-size:16px}
         <div class="brand"><div class="brand-mark">$</div><div class="brand-name">En qué la gasto</div></div>
         <div class="who">
           <div class="avatar" id="topAvatar">E</div>
+          <button class="icon-btn" onclick="go('config')" title="Ajustes">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.4a7 7 0 0 0 .1-1z"/></svg>
+          </button>
           <button class="icon-btn" onclick="doLogout()" title="Salir">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           </button>
@@ -397,7 +409,7 @@ input,select,textarea{font-family:inherit;font-size:16px}
 <div id="toast"></div>
 
 <div class="sheet-bg" id="modalBg" style="align-items:center;z-index:95">
-  <div class="card" id="modalCard" style="max-width:400px;width:calc(100% - 40px);border-radius:20px;padding:22px"></div>
+  <div class="card" id="modalCard" style="max-width:440px;width:calc(100% - 32px);border-radius:20px;padding:0"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -418,6 +430,8 @@ const demo = {
   user:null,
   categorias:[],
   movimientos:[],
+  tarjetas:[],
+  compras:[],
   seed(u){
     this.user = u;
     this.categorias = [
@@ -431,6 +445,7 @@ const demo = {
     const cat = (n)=> this.categorias.find(c=>c.nombre===n).id;
     const d = (off)=>{const x=new Date();x.setDate(x.getDate()-off);return x.toISOString().slice(0,10)};
     const dF = (off)=>{const x=new Date();x.setDate(x.getDate()+off);return x.toISOString().slice(0,10)};
+    const mes = (off)=>{const x=new Date();x.setDate(1);x.setMonth(x.getMonth()+off);return x.toISOString().slice(0,10)};
     this.movimientos = [
       {id:uid(),tipo:'ingreso',importe:850000,categoria_id:cat('Sueldo'),comentario:'Sueldo mayo',ambito:'individual',es_fijo:true,frecuencia:'mensual',fecha:d(2),fecha_vencimiento:null,foto:null},
       {id:uid(),tipo:'gasto',importe:42000,categoria_id:cat('Supermercado'),comentario:'Compra semanal',ambito:'compartido',es_fijo:false,frecuencia:'unico',fecha:d(1),fecha_vencimiento:null,foto:null},
@@ -439,6 +454,16 @@ const demo = {
       {id:uid(),tipo:'gasto',importe:320000,categoria_id:cat('Alquiler'),comentario:'Alquiler depto',ambito:'compartido',es_fijo:true,frecuencia:'mensual',fecha:d(6),fecha_vencimiento:dF(4),foto:null},
       {id:uid(),tipo:'gasto',importe:28000,categoria_id:cat('Servicios'),comentario:'Luz + gas',ambito:'compartido',es_fijo:true,frecuencia:'mensual',fecha:d(8),fecha_vencimiento:dF(2),foto:null},
       {id:uid(),tipo:'gasto',importe:15900,categoria_id:cat('Servicios'),comentario:'Internet',ambito:'compartido',es_fijo:true,frecuencia:'mensual',fecha:d(10),fecha_vencimiento:dF(9),foto:null},
+    ];
+    const tv=uid(), tm=uid();
+    this.tarjetas = [
+      {id:tv,nombre:'Visa Galicia',limite:1000000,color:'#1A6FB5',dia_vencimiento:10},
+      {id:tm,nombre:'Mastercard Nación',limite:600000,color:'#C2456E',dia_vencimiento:22},
+    ];
+    this.compras = [
+      {id:uid(),tarjeta_id:tv,descripcion:'Notebook',monto_total:500000,cuotas:3,primera_cuota:mes(-1),categoria_id:null,ambito:'individual'},
+      {id:uid(),tarjeta_id:tv,descripcion:'Zapatillas',monto_total:120000,cuotas:6,primera_cuota:mes(0),categoria_id:null,ambito:'individual'},
+      {id:uid(),tarjeta_id:tm,descripcion:'Heladera',monto_total:360000,cuotas:12,primera_cuota:mes(-2),categoria_id:null,ambito:'compartido'},
     ];
   }
 };
@@ -509,6 +534,30 @@ const db = {
       if(error) throw error; return data;
     }
     const m=demo.movimientos.find(x=>x.id===id); if(m) Object.assign(m,patch); return m;
+  },
+  async listTarjetas(){
+    if(USE_SUPABASE){ const {data,error}=await sb.from('tarjetas').select('*').order('created_at'); if(error) throw error; return data; }
+    return [...demo.tarjetas];
+  },
+  async createTarjeta(t){
+    if(USE_SUPABASE){ const u=await this.currentUser(); const {data,error}=await sb.from('tarjetas').insert({...t,user_id:u.id}).select().single(); if(error) throw error; return data; }
+    const row={id:uid(),...t}; demo.tarjetas.push(row); return row;
+  },
+  async deleteTarjeta(id){
+    if(USE_SUPABASE){ const {error}=await sb.from('tarjetas').delete().eq('id',id); if(error) throw error; return; }
+    demo.tarjetas=demo.tarjetas.filter(t=>t.id!==id); demo.compras=demo.compras.filter(c=>c.tarjeta_id!==id);
+  },
+  async listCompras(){
+    if(USE_SUPABASE){ const {data,error}=await sb.from('compras_tarjeta').select('*').order('primera_cuota',{ascending:false}); if(error) throw error; return data; }
+    return [...demo.compras];
+  },
+  async createCompra(c){
+    if(USE_SUPABASE){ const u=await this.currentUser(); const {data,error}=await sb.from('compras_tarjeta').insert({...c,user_id:u.id}).select().single(); if(error) throw error; return data; }
+    const row={id:uid(),...c}; demo.compras.unshift(row); return row;
+  },
+  async deleteCompra(id){
+    if(USE_SUPABASE){ const {error}=await sb.from('compras_tarjeta').delete().eq('id',id); if(error) throw error; return; }
+    demo.compras=demo.compras.filter(c=>c.id!==id);
   }
 };
 
@@ -519,6 +568,8 @@ const state = {
   user:null,
   categorias:[],
   movimientos:[],
+  tarjetas:[],
+  compras:[],
   view:'dashboard',
   periodo:'mes',      // dia|semana|mes|anio
   filtroAmbito:'todos' // todos|individual|compartido
@@ -576,6 +627,8 @@ async function enterApp(u){
 async function refreshData(){
   state.categorias = await db.listCategorias();
   state.movimientos = await db.listMovimientos();
+  try{ state.tarjetas = await db.listTarjetas(); state.compras = await db.listCompras(); }
+  catch(e){ state.tarjetas=[]; state.compras=[]; } // por si todavía no corrió el schema de tarjetas
 }
 async function seedDefaultsIfEmpty(){
   if(state.categorias.length>0) return;
@@ -594,33 +647,36 @@ async function seedDefaultsIfEmpty(){
 /* =========================================================
    NAV
    ========================================================= */
-const NAV=[
-  {k:'dashboard',label:'Inicio',icon:'<path d="M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10"/>'},
-  {k:'movimientos',label:'Movimientos',icon:'<path d="M4 6h16M4 12h16M4 18h10"/>'},
-  {k:'add',label:'',icon:'<path d="M12 5v14M5 12h14"/>'},
-  {k:'vencimientos',label:'Vencim.',icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'},
-  {k:'config',label:'Ajustes',icon:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.4a7 7 0 0 0 .1-1z"/>'}
-];
+const NAV={
+  dashboard:{label:'Inicio',short:'Inicio',icon:'<path d="M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10"/>'},
+  movimientos:{label:'Movimientos',short:'Movim.',icon:'<path d="M4 6h16M4 12h16M4 18h10"/>'},
+  add:{label:'',short:'',icon:'<path d="M12 5v14M5 12h14"/>'},
+  tarjetas:{label:'Tarjetas',short:'Tarjetas',icon:'<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20M6 15h4"/>'},
+  vencimientos:{label:'Vencimientos',short:'Vencim.',icon:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'},
+  config:{label:'Ajustes',short:'Ajustes',icon:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 1.7 1l.3 2.5h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.4a7 7 0 0 0 .1-1z"/>'}
+};
+const BOTTOM=['dashboard','movimientos','add','tarjetas','vencimientos'];
+const SIDE=['dashboard','movimientos','tarjetas','vencimientos','config'];
 function svg(p){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`}
 function buildNav(){
-  // bottom
   const bn=document.getElementById('bottomNav'); bn.innerHTML='';
-  NAV.forEach(n=>{
-    if(n.k==='add'){
+  BOTTOM.forEach(k=>{
+    const n=NAV[k];
+    if(k==='add'){
       const w=document.createElement('div'); w.className='fab-wrap';
       const b=document.createElement('button'); b.className='fab'; b.innerHTML=svg(n.icon);
       b.onclick=openWizard; w.appendChild(b); bn.appendChild(w); return;
     }
-    const b=document.createElement('button'); b.dataset.k=n.k;
-    b.innerHTML=svg(n.icon)+`<span>${n.label}</span>`;
-    b.onclick=()=>go(n.k); bn.appendChild(b);
+    const b=document.createElement('button'); b.dataset.k=k;
+    b.innerHTML=svg(n.icon)+`<span>${n.short}</span>`;
+    b.onclick=()=>go(k); bn.appendChild(b);
   });
-  // side
   const sn=document.getElementById('sideNav'); sn.innerHTML='';
-  NAV.filter(n=>n.k!=='add').forEach(n=>{
-    const b=document.createElement('button'); b.dataset.k=n.k;
-    b.innerHTML=svg(n.icon)+`<span>${n.label||'Inicio'}</span>`;
-    b.onclick=()=>go(n.k); sn.appendChild(b);
+  SIDE.forEach(k=>{
+    const n=NAV[k];
+    const b=document.createElement('button'); b.dataset.k=k;
+    b.innerHTML=svg(n.icon)+`<span>${n.label}</span>`;
+    b.onclick=()=>go(k); sn.appendChild(b);
   });
   markNav();
 }
@@ -662,6 +718,7 @@ function render(){
   const v=state.view;
   if(v==='dashboard') renderDashboard();
   else if(v==='movimientos') renderMovimientos();
+  else if(v==='tarjetas') renderTarjetas();
   else if(v==='vencimientos') renderVencimientos();
   else if(v==='config') renderConfig();
 }
@@ -726,6 +783,14 @@ function renderDashboard(){
           : `<div class="empty"><div class="big">✅</div>Nada por vencer</div>`}
       </div>
     </div>
+
+    ${state.tarjetas.length? `<div class="card" style="margin-top:14px;cursor:pointer" onclick="go('tarjetas')">
+      <div class="card-h"><h3>Tarjetas</h3><span class="link">Ver detalle</span></div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap">
+        <div><div style="font-size:11.5px;color:var(--ink-faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em">A pagar este mes</div><div class="num txt-out" style="font-family:'Fraunces',serif;font-weight:600;font-size:25px;margin-top:4px">${fmt(totalPagaMes(nowMonthIdx()))}</div></div>
+        <div><div style="font-size:11.5px;color:var(--ink-faint);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Disponible total</div><div class="num txt-in" style="font-family:'Fraunces',serif;font-weight:600;font-size:25px;margin-top:4px">${fmt(totalDisponible())}</div></div>
+      </div>
+    </div>`:''}
 
     <div class="card" style="margin-top:14px">
       <div class="card-h"><h3>Movimientos recientes</h3><span class="link" onclick="go('movimientos')">Ver todos</span></div>
@@ -816,6 +881,219 @@ function renderVencimientos(){
       <button class="btn-next" style="padding:11px 16px;border-radius:12px;font-weight:700;white-space:nowrap" onclick="openVenc()">＋ Agregar</button>
     </div>
     ${list.length? list.map(m=>vencRow(m,true)).join('') : `<div class="card"><div class="empty"><div class="big">📅</div>No tenés vencimientos cargados.<br><span style="font-size:13px">Tocá "Agregar" para sumar un servicio o pago fijo.</span></div></div>`}`;
+}
+
+/* =========================================================
+   TARJETAS — lógica de cuotas y proyección
+   ========================================================= */
+function monthIdx(iso){ const d=new Date(iso+'T12:00:00'); return d.getFullYear()*12 + d.getMonth(); }
+function nowMonthIdx(){ const d=new Date(); return d.getFullYear()*12 + d.getMonth(); }
+function monthLabel(idx){ const y=Math.floor(idx/12), m=((idx%12)+12)%12; return new Date(y,m,1).toLocaleDateString(CONFIG.LOCALE,{month:'short',year:'2-digit'}); }
+function cuotaMonto(c){ return Number(c.monto_total)/Math.max(1,Number(c.cuotas)); }
+function compraInfo(c){
+  const start=monthIdx(c.primera_cuota);
+  const end=start+Number(c.cuotas)-1;
+  const now=nowMonthIdx();
+  let actual=now-start+1, estado='activa';
+  if(now<start){ estado='proxima'; actual=0; }
+  else if(now>end){ estado='finalizada'; actual=Number(c.cuotas); }
+  else actual=Math.min(Number(c.cuotas), Math.max(1,actual));
+  const pagadas=Math.max(0, Math.min(Number(c.cuotas), now-start));
+  const restantes=Number(c.cuotas)-pagadas;
+  return {start,end,actual,estado,pagadas,restantes,saldo:cuotaMonto(c)*restantes,monto:cuotaMonto(c)};
+}
+function cuotaEnMes(c,idx){ const i=compraInfo(c); return (idx>=i.start && idx<=i.end)? i.monto : 0; }
+function tarjetaUsado(tid){ return state.compras.filter(c=>c.tarjeta_id===tid).reduce((s,c)=>s+compraInfo(c).saldo,0); }
+function tarjetaPagaMes(tid,idx){ return state.compras.filter(c=>c.tarjeta_id===tid).reduce((s,c)=>s+cuotaEnMes(c,idx),0); }
+function totalPagaMes(idx){ return state.compras.reduce((s,c)=>s+cuotaEnMes(c,idx),0); }
+function totalDisponible(){ return state.tarjetas.reduce((s,t)=>s+(Number(t.limite)-tarjetaUsado(t.id)),0); }
+
+function renderTarjetas(){
+  const tarjetas=state.tarjetas;
+  const nowIdx=nowMonthIdx();
+  const usadoTotal=tarjetas.reduce((s,t)=>s+tarjetaUsado(t.id),0);
+  const dispTotal=totalDisponible();
+  const pagaMes=totalPagaMes(nowIdx);
+  const proj=[]; for(let k=0;k<6;k++){ const idx=nowIdx+k; proj.push({idx,val:totalPagaMes(idx)}); }
+  const maxProj=Math.max(1,...proj.map(p=>p.val));
+  document.getElementById('content').innerHTML=`
+    <div class="view-title">Tarjetas</div>
+    <div class="controls-row" style="justify-content:space-between;align-items:center">
+      <p style="color:var(--ink-soft);margin:0;font-size:14px">Tus tarjetas, cuotas y proyección de pagos.</p>
+      <button class="btn-next" style="padding:11px 16px;border-radius:12px;font-weight:700;white-space:nowrap" onclick="openTarjeta()">＋ Tarjeta</button>
+    </div>
+    <div class="grid kpis" style="margin-bottom:14px">
+      <div class="card kpi"><div class="lbl"><span class="dot out"></span>A pagar este mes</div><div class="val num txt-out">${fmt(pagaMes)}</div></div>
+      <div class="card kpi"><div class="lbl"><span class="dot in"></span>Disponible total</div><div class="val num txt-in">${fmt(dispTotal)}</div></div>
+      <div class="card kpi"><div class="lbl">Usado total</div><div class="val num">${fmt(usadoTotal)}</div></div>
+      <div class="card kpi"><div class="lbl">Tarjetas</div><div class="val num">${tarjetas.length}</div></div>
+    </div>
+    ${tarjetas.length? tarjetas.map(tarjetaCard).join('') : `<div class="card"><div class="empty"><div class="big">💳</div>No tenés tarjetas cargadas.<br><span style="font-size:13px">Tocá "Tarjeta" para sumar la primera.</span></div></div>`}
+    ${state.compras.length? `<div class="card" style="margin-top:14px">
+      <div class="card-h"><h3>Proyección de pagos</h3></div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:6px">
+        ${proj.map(p=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+          <div style="font-size:10px;font-weight:700;color:var(--ink-soft);white-space:nowrap">${p.val?fmt(p.val):''}</div>
+          <div style="width:100%;background:${p.idx===nowIdx?'var(--emerald)':'var(--emerald-soft)'};border-radius:7px 7px 0 0;height:${Math.max(3,p.val/maxProj*100)}%;min-height:3px"></div>
+          <div style="font-size:11px;color:var(--ink-faint);font-weight:600">${monthLabel(p.idx)}</div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}`;
+}
+function tarjetaCard(t){
+  const usado=tarjetaUsado(t.id);
+  const disp=Number(t.limite)-usado;
+  const pct=Number(t.limite)>0? Math.min(100, usado/Number(t.limite)*100):0;
+  const pagaMes=tarjetaPagaMes(t.id, nowMonthIdx());
+  const compras=state.compras.filter(c=>c.tarjeta_id===t.id);
+  return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:48px;height:32px;border-radius:7px;background:${t.color||'#586068'};box-shadow:inset 0 -11px 0 rgba(0,0,0,.13)"></div>
+        <div><div style="font-weight:700;font-size:16px">${t.nombre}</div><div style="font-size:12.5px;color:var(--ink-faint)">Límite ${fmt(t.limite)}</div></div>
+      </div>
+      <button class="icon-btn" style="color:var(--ink-faint)" onclick="delTarjeta('${t.id}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+      <span><b class="txt-in">${fmt(disp)}</b> <span style="color:var(--ink-faint)">disponible</span></span>
+      <span style="color:var(--ink-faint)">${fmt(usado)} usado</span>
+    </div>
+    <div class="track" style="height:9px"><div class="fill" style="width:${pct}%;background:${pct>85?'var(--coral)':(t.color||'var(--emerald)')}"></div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:15px 0 4px">
+      <span style="font-size:13px;color:var(--ink-soft)">Cuota de este mes: <b class="txt-out">${fmt(pagaMes)}</b></span>
+      <button class="chip" style="background:var(--emerald);color:#fff;padding:7px 13px" onclick="openCompra('${t.id}')">＋ Compra</button>
+    </div>
+    ${compras.length? `<div style="margin-top:6px">${compras.map(compraRow).join('')}</div>` : '<div style="font-size:12.5px;color:var(--ink-faint);padding:8px 0 2px">Sin compras cargadas.</div>'}
+  </div>`;
+}
+function compraRow(c){
+  const i=compraInfo(c);
+  const estadoTxt = i.estado==='finalizada'?'Finalizada' : i.estado==='proxima'?`Arranca ${monthLabel(i.start)}` : `Cuota ${i.actual} de ${c.cuotas}`;
+  return `<div class="mv" style="padding:11px 0">
+    <div class="mv-ic out" style="width:38px;height:38px;font-size:15px">💳</div>
+    <div class="mv-body">
+      <div class="t">${c.descripcion}</div>
+      <div class="s"><b>${estadoTxt}</b> · ${fmt(c.monto_total)} en ${c.cuotas} ${Number(c.cuotas)===1?'pago':'cuotas'} · termina ${monthLabel(i.end)} ${c.ambito==='compartido'?'<span class="chip share">Compartido</span>':''}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div class="mv-amt num">${fmt(i.monto)}</div>
+      <div style="font-size:11px;color:var(--ink-faint)">por mes</div>
+    </div>
+    <button class="icon-btn" style="margin-left:4px;color:var(--ink-faint);flex-shrink:0" onclick="delCompra('${c.id}')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+  </div>`;
+}
+
+/* ---- formularios de tarjeta y compra ---- */
+const CARD_COLORS=['#1A6FB5','#C2456E','#0E6B4E','#586068','#D9962B','#7A5CC4'];
+let tarjForm=null;
+function openTarjeta(){ tarjForm={color:CARD_COLORS[0]}; renderTarjForm(); }
+function renderTarjForm(){
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`
+    <div class="m-scroll">
+      <h3>Nueva tarjeta</h3>
+      <div class="frm">
+        <label>Nombre</label>
+        <input id="tfNombre" placeholder="Ej: Visa Galicia">
+        <label>Límite</label>
+        <input id="tfLimite" type="number" inputmode="decimal" placeholder="0">
+        <label>Color</label>
+        <div class="chips" id="tfColors">
+          ${CARD_COLORS.map(col=>`<button type="button" onclick="tarjForm.color='${col}';document.querySelectorAll('#tfColors button').forEach(b=>b.style.borderColor='transparent');this.style.borderColor='var(--ink)'" style="width:40px;height:40px;border-radius:11px;background:${col};border:3px solid ${tarjForm.color===col?'var(--ink)':'transparent'}"></button>`).join('')}
+        </div>
+        <label>Día de cierre/vencimiento del resumen <span style="font-weight:400;color:var(--ink-faint)">(opcional)</span></label>
+        <input id="tfDia" type="number" min="1" max="31" placeholder="Ej: 10">
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn-back" onclick="closeModal(null)">Cancelar</button>
+      <button class="btn-next" onclick="saveTarjeta()">Guardar</button>
+    </div>`;
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(()=>{const n=document.getElementById('tfNombre');n&&n.focus()},120);
+}
+async function saveTarjeta(){
+  const nombre=document.getElementById('tfNombre').value.trim();
+  const limite=Number(document.getElementById('tfLimite').value);
+  const dia=Number(document.getElementById('tfDia').value)||null;
+  if(!nombre){ uiAlert('Poné un nombre para la tarjeta.'); return; }
+  if(!(limite>0)){ uiAlert('Poné un límite mayor a 0.'); return; }
+  try{
+    await db.createTarjeta({nombre, limite, color:tarjForm.color, dia_vencimiento:dia});
+    await refreshData(); closeModal(null); render(); toast('Tarjeta agregada ✓');
+  }catch(err){ uiAlert('No se pudo guardar:\n\n'+(err.message||err)+'\n\n¿Corriste el schema.sql actualizado (con las tablas de tarjetas)?'); }
+}
+async function delTarjeta(id){
+  if(!(await uiConfirm('¿Eliminar esta tarjeta y todas sus compras?'))) return;
+  try{ await db.deleteTarjeta(id); await refreshData(); render(); toast('Tarjeta eliminada'); }
+  catch(err){ uiAlert('No se pudo eliminar:\n\n'+(err.message||err)); }
+}
+
+let compraForm=null;
+function openCompra(tarjeta_id){
+  if(!state.tarjetas.length){ uiAlert('Primero agregá una tarjeta.'); return; }
+  compraForm={ tarjeta_id: tarjeta_id||state.tarjetas[0].id, ambito:'individual' };
+  renderCompraForm();
+}
+function renderCompraForm(){
+  const cats=state.categorias.filter(c=>c.tipo==='gasto');
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`
+    <div class="m-scroll">
+      <h3>Nueva compra</h3>
+      <p style="color:var(--ink-soft);font-size:13px;margin:0 0 8px">Una compra en cuotas (o un pago).</p>
+      <div class="frm">
+        <label>Tarjeta</label>
+        <select id="cfTarjeta">${state.tarjetas.map(t=>`<option value="${t.id}" ${compraForm.tarjeta_id===t.id?'selected':''}>${t.nombre}</option>`).join('')}</select>
+        <label>Descripción</label>
+        <input id="cfDesc" placeholder="Ej: Notebook, Heladera…">
+        <label>Monto total</label>
+        <input id="cfMonto" type="number" inputmode="decimal" placeholder="0" oninput="cfRecalc()">
+        <label>Cantidad de cuotas</label>
+        <input id="cfCuotas" type="number" min="1" value="1" oninput="cfRecalc()">
+        <div id="cfHint" style="font-size:14px;color:var(--emerald);font-weight:700;margin-top:8px"></div>
+        <label>Fecha de la primera cuota</label>
+        <input id="cfFecha" type="date" value="${todayISO()}">
+        <label>Categoría <span style="font-weight:400;color:var(--ink-faint)">(opcional)</span></label>
+        <select id="cfCat"><option value="">— sin categoría —</option>${cats.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('')}</select>
+        <label>Ámbito</label>
+        <div class="toggle2">
+          <button type="button" id="cfAmbInd" class="${compraForm.ambito==='individual'?'sel':''}" onclick="compraForm.ambito='individual';document.getElementById('cfAmbInd').classList.add('sel');document.getElementById('cfAmbCom').classList.remove('sel')">👤 Individual</button>
+          <button type="button" id="cfAmbCom" class="${compraForm.ambito==='compartido'?'sel':''}" onclick="compraForm.ambito='compartido';document.getElementById('cfAmbCom').classList.add('sel');document.getElementById('cfAmbInd').classList.remove('sel')">👥 Compartido</button>
+        </div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn-back" onclick="closeModal(null)">Cancelar</button>
+      <button class="btn-next" onclick="saveCompra()">Guardar</button>
+    </div>`;
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(()=>{const n=document.getElementById('cfDesc');n&&n.focus()},120);
+}
+function cfRecalc(){
+  const monto=Number(document.getElementById('cfMonto').value)||0;
+  const cuotas=Math.max(1,Number(document.getElementById('cfCuotas').value)||1);
+  document.getElementById('cfHint').textContent = monto>0? `${cuotas} ${cuotas===1?'pago':'cuotas'} de ${fmt(monto/cuotas)}` : '';
+}
+async function saveCompra(){
+  const tarjeta_id=document.getElementById('cfTarjeta').value;
+  const descripcion=document.getElementById('cfDesc').value.trim();
+  const monto_total=Number(document.getElementById('cfMonto').value);
+  const cuotas=Math.max(1,Math.floor(Number(document.getElementById('cfCuotas').value)||1));
+  const primera_cuota=document.getElementById('cfFecha').value;
+  const categoria_id=document.getElementById('cfCat').value||null;
+  if(!descripcion){ uiAlert('Poné una descripción.'); return; }
+  if(!(monto_total>0)){ uiAlert('Poné un monto mayor a 0.'); return; }
+  if(!primera_cuota){ uiAlert('Elegí la fecha de la primera cuota.'); return; }
+  try{
+    await db.createCompra({ tarjeta_id, descripcion, monto_total, cuotas, primera_cuota, categoria_id, ambito:compraForm.ambito });
+    await refreshData(); closeModal(null); render(); toast('Compra agregada ✓');
+  }catch(err){ uiAlert('No se pudo guardar:\n\n'+(err.message||err)); }
+}
+async function delCompra(id){
+  if(!(await uiConfirm('¿Eliminar esta compra?'))) return;
+  try{ await db.deleteCompra(id); await refreshData(); render(); toast('Compra eliminada'); }
+  catch(err){ uiAlert('No se pudo eliminar:\n\n'+(err.message||err)); }
 }
 
 /* ---- CONFIG ---- */
@@ -1046,10 +1324,12 @@ function uiModal({title,body,buttons}){
     _modalResolve=res;
     const card=document.getElementById('modalCard');
     card.innerHTML=`
-      <h3 style="font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin:0 0 12px;letter-spacing:-.01em">${title}</h3>
-      <div id="modalBody">${body}</div>
-      <div style="display:flex;gap:10px;margin-top:18px">
-        ${buttons.map((b,i)=>`<button data-i="${i}" class="${b.primary?'btn-next':'btn-back'}" style="flex:1;padding:12px;border-radius:12px;font-weight:700">${b.label}</button>`).join('')}
+      <div class="m-scroll">
+        <h3>${title}</h3>
+        <div id="modalBody">${body}</div>
+      </div>
+      <div class="m-foot">
+        ${buttons.map((b,i)=>`<button data-i="${i}" class="${b.primary?'btn-next':'btn-back'}">${b.label}</button>`).join('')}
       </div>`;
     card.querySelectorAll('button[data-i]').forEach(btn=>{
       btn.onclick=()=>{ const b=buttons[+btn.dataset.i]; closeModal(b.getValue?b.getValue():b.value); };
@@ -1093,33 +1373,35 @@ function renderVencForm(){
   const cats=state.categorias.filter(c=>c.tipo==='gasto');
   const card=document.getElementById('modalCard');
   card.innerHTML=`
-    <h3 style="font-family:'Fraunces',serif;font-weight:600;font-size:19px;margin:0 0 4px;letter-spacing:-.01em">Nuevo vencimiento</h3>
-    <p style="color:var(--ink-soft);font-size:13px;margin:0 0 8px">Servicios o pagos fijos con fecha: alquiler, luz, gas, internet…</p>
-    <div class="frm">
-      <label>Nombre del pago</label>
-      <input id="vfNombre" placeholder="Ej: Luz, Gas, Alquiler">
-      <label>Categoría</label>
-      <select id="vfCat">${cats.length? cats.map(c=>`<option value="${c.id}" ${vencForm.categoria_id===c.id?'selected':''}>${c.nombre}</option>`).join('') : '<option value="">(creá una categoría de gasto primero)</option>'}</select>
-      <label>Importe</label>
-      <input id="vfImporte" type="number" inputmode="decimal" placeholder="0">
-      <label>Ámbito</label>
-      <div class="toggle2">
-        <button type="button" id="vfAmbInd" class="${vencForm.ambito==='individual'?'sel':''}" onclick="vencForm.ambito='individual';document.getElementById('vfAmbInd').classList.add('sel');document.getElementById('vfAmbCom').classList.remove('sel')">👤 Individual</button>
-        <button type="button" id="vfAmbCom" class="${vencForm.ambito==='compartido'?'sel':''}" onclick="vencForm.ambito='compartido';document.getElementById('vfAmbCom').classList.add('sel');document.getElementById('vfAmbInd').classList.remove('sel')">👥 Compartido</button>
+    <div class="m-scroll">
+      <h3>Nuevo vencimiento</h3>
+      <p style="color:var(--ink-soft);font-size:13px;margin:0 0 8px">Servicios o pagos fijos con fecha: alquiler, luz, gas, internet…</p>
+      <div class="frm">
+        <label>Nombre del pago</label>
+        <input id="vfNombre" placeholder="Ej: Luz, Gas, Alquiler">
+        <label>Categoría</label>
+        <select id="vfCat">${cats.length? cats.map(c=>`<option value="${c.id}" ${vencForm.categoria_id===c.id?'selected':''}>${c.nombre}</option>`).join('') : '<option value="">(creá una categoría de gasto primero)</option>'}</select>
+        <label>Importe</label>
+        <input id="vfImporte" type="number" inputmode="decimal" placeholder="0">
+        <label>Ámbito</label>
+        <div class="toggle2">
+          <button type="button" id="vfAmbInd" class="${vencForm.ambito==='individual'?'sel':''}" onclick="vencForm.ambito='individual';document.getElementById('vfAmbInd').classList.add('sel');document.getElementById('vfAmbCom').classList.remove('sel')">👤 Individual</button>
+          <button type="button" id="vfAmbCom" class="${vencForm.ambito==='compartido'?'sel':''}" onclick="vencForm.ambito='compartido';document.getElementById('vfAmbCom').classList.add('sel');document.getElementById('vfAmbInd').classList.remove('sel')">👥 Compartido</button>
+        </div>
+        <label>Frecuencia</label>
+        <select id="vfFreq">
+          <option value="mensual">Mensual</option>
+          <option value="semanal">Semanal</option>
+          <option value="anual">Anual</option>
+          <option value="unico">Único (no se repite)</option>
+        </select>
+        <label>Próximo vencimiento</label>
+        <input id="vfFecha" type="date" value="${todayISO()}">
       </div>
-      <label>Frecuencia</label>
-      <select id="vfFreq">
-        <option value="mensual">Mensual</option>
-        <option value="semanal">Semanal</option>
-        <option value="anual">Anual</option>
-        <option value="unico">Único (no se repite)</option>
-      </select>
-      <label>Próximo vencimiento</label>
-      <input id="vfFecha" type="date" value="${todayISO()}">
     </div>
-    <div style="display:flex;gap:10px;margin-top:18px">
-      <button class="btn-back" style="flex:1;padding:12px;border-radius:12px;font-weight:700" onclick="closeModal(null)">Cancelar</button>
-      <button class="btn-next" style="flex:1;padding:12px;border-radius:12px;font-weight:700" onclick="saveVenc()">Guardar</button>
+    <div class="m-foot">
+      <button class="btn-back" onclick="closeModal(null)">Cancelar</button>
+      <button class="btn-next" onclick="saveVenc()">Guardar</button>
     </div>`;
   document.getElementById('modalBg').classList.add('show');
   setTimeout(()=>{const n=document.getElementById('vfNombre');n&&n.focus()},120);
