@@ -608,6 +608,7 @@ const state = {
   compartidos:[],
   view:'dashboard',
   periodo:'mes',      // dia|semana|mes|anio
+  periodoOffset:0,    // 0=actual, -1=anterior, etc.
   filtroAmbito:'todos' // todos|individual|compartido
 };
 
@@ -755,24 +756,29 @@ function initSwipe(){
 /* =========================================================
    HELPERS DE PERÍODO / FILTROS
    ========================================================= */
-function rangeFor(periodo){
+function rangeFor(periodo, offset){
+  offset=offset||0;
   const now=new Date();
   const start=new Date(now); start.setHours(0,0,0,0);
   const end=new Date(now); end.setHours(23,59,59,999);
-  if(periodo==='semana'){
-    const day=(start.getDay()+6)%7; start.setDate(start.getDate()-day);
+  if(periodo==='dia'){
+    start.setDate(start.getDate()+offset);
+    end.setTime(start.getTime()); end.setHours(23,59,59,999);
+  } else if(periodo==='semana'){
+    const day=(start.getDay()+6)%7; start.setDate(start.getDate()-day+offset*7);
     end.setTime(start.getTime()); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
   } else if(periodo==='mes'){
-    start.setDate(1);
-    end.setMonth(end.getMonth()+1,0); end.setHours(23,59,59,999); // último día del mes
+    start.setDate(1); start.setMonth(start.getMonth()+offset);
+    end.setTime(start.getTime()); end.setMonth(end.getMonth()+1,0); end.setHours(23,59,59,999);
   } else if(periodo==='anio'){
-    start.setMonth(0,1);
-    end.setMonth(11,31); end.setHours(23,59,59,999);
+    start.setMonth(0,1); start.setFullYear(start.getFullYear()+offset);
+    end.setTime(start.getTime()); end.setMonth(11,31); end.setHours(23,59,59,999);
   }
   return {start,end};
 }
+function viewMonthIdx(){ const {start}=rangeFor(state.periodo, state.periodoOffset); return start.getFullYear()*12 + start.getMonth(); }
 function filteredMovs(){
-  const {start,end}=rangeFor(state.periodo);
+  const {start,end}=rangeFor(state.periodo, state.periodoOffset);
   return state.movimientos.filter(m=>{
     const f=new Date(m.fecha+'T12:00:00');
     if(f<start||f>end) return false;
@@ -796,8 +802,28 @@ function render(){
   else if(v==='config') renderConfig();
 }
 
-function periodLabel(){return {dia:'hoy',semana:'esta semana',mes:'este mes',anio:'este año'}[state.periodo]}
-
+function periodLabel(){
+  if(state.periodoOffset===0) return {dia:'hoy',semana:'esta semana',mes:'este mes',anio:'este año'}[state.periodo];
+  return 'en '+periodoRefLabel();
+}
+function periodoRefLabel(){
+  const {start,end}=rangeFor(state.periodo, state.periodoOffset);
+  if(state.periodo==='dia') return start.toLocaleDateString(CONFIG.LOCALE,{weekday:'short',day:'numeric',month:'short'});
+  if(state.periodo==='semana') return `${start.getDate()} ${start.toLocaleDateString(CONFIG.LOCALE,{month:'short'})} – ${end.getDate()} ${end.toLocaleDateString(CONFIG.LOCALE,{month:'short'})}`;
+  if(state.periodo==='mes') return start.toLocaleDateString(CONFIG.LOCALE,{month:'long',year:'numeric'});
+  return String(start.getFullYear());
+}
+function periodoNav(){
+  const chev=(d)=>`<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d<0?'M15 18l-6-6 6-6':'M9 18l6-6-6-6'}"/></svg>`;
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:5px;margin-bottom:12px">
+    <button class="icon-btn" onclick="shiftPeriodo(-1)">${chev(-1)}</button>
+    <div style="text-align:center;flex:1;min-width:0">
+      <div style="font-weight:700;font-size:14.5px;text-transform:capitalize;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${periodoRefLabel()}</div>
+      ${state.periodoOffset!==0?`<button onclick="resetPeriodo()" style="font-size:11px;color:var(--emerald);font-weight:700;padding:0">Volver a hoy</button>`:''}
+    </div>
+    <button class="icon-btn" onclick="shiftPeriodo(1)" style="${state.periodoOffset>=0?'opacity:.3;pointer-events:none':''}">${chev(1)}</button>
+  </div>`;
+}
 function segPeriodo(){
   return `<div class="seg" id="segP">
     ${['dia','semana','mes','anio'].map(p=>`<button class="${state.periodo===p?'on':''}" onclick="setPeriodo('${p}')">${({dia:'Día',semana:'Semana',mes:'Mes',anio:'Año'})[p]}</button>`).join('')}
@@ -808,8 +834,11 @@ function segAmbito(){
     ${[['todos','Todos'],['individual','Individual'],['compartido','Compartido']].map(([k,l])=>`<button class="${state.filtroAmbito===k?'on':''}" onclick="setAmbito('${k}')">${l}</button>`).join('')}
   </div>`;
 }
-function setPeriodo(p){ state.periodo=p; render(); }
+function setPeriodo(p){ state.periodo=p; state.periodoOffset=0; render(); }
 function setAmbito(a){ state.filtroAmbito=a; render(); }
+function shiftPeriodo(d){ state.periodoOffset=Math.min(0, state.periodoOffset+d); render(); window.scrollTo(0,0); }
+function resetPeriodo(){ state.periodoOffset=0; render(); }
+function goMes(offset){ state.view='movimientos'; state.periodo='mes'; state.periodoOffset=Math.min(0,offset); markNav(); render(); window.scrollTo(0,0); }
 
 function renderDashboard(){
   const movs=filteredMovs();
@@ -834,7 +863,8 @@ function renderDashboard(){
       <div style="font-size:13px;font-weight:700;color:#9a6913;margin-bottom:8px">⏳ Tenés ${misPendientes().length} gasto(s) compartido(s) para responder</div>
       ${misPendientes().map(pendienteCard).join('')}
     </div>`:''}
-    <div class="controls-row">${segPeriodo()}${segAmbito()}</div>
+    <div class="controls-row" style="margin-bottom:10px">${segPeriodo()}${segAmbito()}</div>
+    ${periodoNav()}
 
     <div class="grid kpis" style="margin-bottom:14px">
       <div class="card kpi"><div class="lbl"><span class="dot bal"></span>Balance ${periodLabel()}</div><div class="val num ${balance<0?'txt-out':'txt-in'}">${fmt(balance)}</div></div>
@@ -860,6 +890,8 @@ function renderDashboard(){
           : `<div class="empty"><div class="big">✅</div>Nada por vencer</div>`}
       </div>
     </div>
+
+    <div style="margin-top:14px">${chartIngGas()}</div>
 
     ${state.tarjetas.length? `<div class="card" style="margin-top:14px;cursor:pointer" onclick="go('tarjetas')">
       <div class="card-h"><h3>Tarjetas</h3><span class="link">Ver detalle</span></div>
@@ -901,7 +933,7 @@ function fmtDate(iso){
 
 /* ---- MOVIMIENTOS ---- */
 function monthlySeries(n){
-  const base=nowMonthIdx(); const res=[];
+  const base=viewMonthIdx(); const res=[];
   for(let k=n-1;k>=0;k--){
     const idx=base-k;
     const movs=state.movimientos.filter(m=>{
@@ -915,6 +947,23 @@ function monthlySeries(n){
     });
   }
   return res;
+}
+function resumenMensual(){
+  const data=monthlySeries(6).slice().reverse();
+  const nowIdx=nowMonthIdx();
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><h3>Resumen mes a mes</h3></div>
+    ${data.map(d=>{
+      const bal=d.ing-d.gas; const off=d.idx-nowIdx; const sel=d.idx===viewMonthIdx();
+      return `<div class="mv" style="cursor:pointer;${sel?'background:var(--bg-2);border-radius:10px;margin:0 -8px;padding-left:8px;padding-right:8px':''}" onclick="goMes(${off})">
+        <div class="mv-body">
+          <div class="t" style="text-transform:capitalize">${new Date(Math.floor(d.idx/12),((d.idx%12)+12)%12,1).toLocaleDateString(CONFIG.LOCALE,{month:'long',year:'numeric'})}</div>
+          <div class="s"><span class="txt-in">+${fmt(d.ing)}</span> · <span class="txt-out">−${fmt(d.gas)}</span></div>
+        </div>
+        <div class="mv-amt ${bal<0?'txt-out':'txt-in'}">${fmt(bal)}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 function chartIngGas(){
   const data=monthlySeries(6);
@@ -950,7 +999,9 @@ function renderMovimientos(){
     </div>
     <div class="controls-row">${segAmbito()}</div>
     ${chartIngGas()}
-    <div class="controls-row">${segPeriodo()}</div>
+    ${resumenMensual()}
+    <div class="controls-row" style="margin-bottom:10px">${segPeriodo()}</div>
+    ${periodoNav()}
     <div class="card">
       ${movs.length? movs.map(m=>movRowDel(m)).join('') : `<div class="empty"><div class="big">🧾</div>Sin movimientos ${periodLabel()}</div>`}
     </div>`;
