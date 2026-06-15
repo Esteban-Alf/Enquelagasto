@@ -434,6 +434,7 @@ const demo = {
   movimientos:[],
   tarjetas:[],
   compras:[],
+  compartidos:[],
   seed(u){
     this.user = u;
     this.categorias = [
@@ -560,6 +561,28 @@ const db = {
   async deleteCompra(id){
     if(USE_SUPABASE){ const {error}=await sb.from('compras_tarjeta').delete().eq('id',id); if(error) throw error; return; }
     demo.compras=demo.compras.filter(c=>c.id!==id);
+  },
+  async listCompartidos(){
+    if(USE_SUPABASE){ const {data,error}=await sb.from('compartidos').select('*').order('created_at',{ascending:false}); if(error) throw error; return data; }
+    return [...demo.compartidos];
+  },
+  async createCompartido(c){
+    if(USE_SUPABASE){
+      const u=await this.currentUser();
+      const row={...c, creador_id:u.id, creador_email:u.email, creador_nombre:(u.user_metadata?.nombre)||((u.email||'').split('@')[0])};
+      const {data,error}=await sb.from('compartidos').insert(row).select().single();
+      if(error) throw error; return data;
+    }
+    const row={id:uid(),creador_id:demo.user.id,creador_email:demo.user.email,creador_nombre:demo.user.nombre,...c};
+    demo.compartidos.unshift(row); return row;
+  },
+  async updateCompartido(id,patch){
+    if(USE_SUPABASE){ const {data,error}=await sb.from('compartidos').update(patch).eq('id',id).select().single(); if(error) throw error; return data; }
+    const c=demo.compartidos.find(x=>x.id===id); if(c) Object.assign(c,patch); return c;
+  },
+  async deleteCompartido(id){
+    if(USE_SUPABASE){ const {error}=await sb.from('compartidos').delete().eq('id',id); if(error) throw error; return; }
+    demo.compartidos=demo.compartidos.filter(c=>c.id!==id);
   }
 };
 
@@ -572,6 +595,7 @@ const state = {
   movimientos:[],
   tarjetas:[],
   compras:[],
+  compartidos:[],
   view:'dashboard',
   periodo:'mes',      // dia|semana|mes|anio
   filtroAmbito:'todos' // todos|individual|compartido
@@ -633,6 +657,8 @@ async function refreshData(){
   state.movimientos = await db.listMovimientos();
   try{ state.tarjetas = await db.listTarjetas(); state.compras = await db.listCompras(); }
   catch(e){ state.tarjetas=[]; state.compras=[]; } // por si todavía no corrió el schema de tarjetas
+  try{ state.compartidos = await db.listCompartidos(); }
+  catch(e){ state.compartidos=[]; } // por si todavía no corrió el schema de compartidos
 }
 async function seedDefaultsIfEmpty(){
   if(state.categorias.length>0) return;
@@ -794,6 +820,10 @@ function renderDashboard(){
 
   const html=`
     <div class="view-title">Hola, ${state.user.nombre} 👋</div>
+    ${misPendientes().length? `<div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:#9a6913;margin-bottom:8px">⏳ Tenés ${misPendientes().length} gasto(s) compartido(s) para responder</div>
+      ${misPendientes().map(pendienteCard).join('')}
+    </div>`:''}
     <div class="controls-row">${segPeriodo()}${segAmbito()}</div>
 
     <div class="grid kpis" style="margin-bottom:14px">
@@ -1173,12 +1203,85 @@ async function delCompra(id){
   catch(err){ uiAlert('No se pudo eliminar:\n\n'+(err.message||err)); }
 }
 
+/* =========================================================
+   COMPARTIDOS — aceptar / rechazar / listar
+   ========================================================= */
+function misPendientes(){
+  const email=(state.user.email||'').toLowerCase();
+  return state.compartidos.filter(c=> c.estado==='pendiente' && (c.destinatario_email||'').toLowerCase()===email && c.creador_id!==state.user.id);
+}
+function compartidosCreados(){ return state.compartidos.filter(c=> c.creador_id===state.user.id); }
+async function aceptarCompartido(id){
+  const c=state.compartidos.find(x=>x.id===id); if(!c) return;
+  const miPorcion=Number(c.monto_total)*Number(c.porcentaje)/100;
+  try{
+    await db.updateCompartido(id,{estado:'aceptado',destinatario_id:state.user.id});
+    await db.createMovimiento({
+      tipo:'gasto', importe:miPorcion, categoria_id:null,
+      comentario:(c.descripcion||'Gasto compartido')+` (compartido con ${c.creador_nombre||c.creador_email})`,
+      ambito:'compartido', es_fijo:false, frecuencia:'unico',
+      fecha:c.fecha, fecha_vencimiento:c.fecha_vencimiento||null, foto:null, compartido_id:c.id
+    });
+    await refreshData(); render(); toast('Compartido aceptado ✓');
+  }catch(err){ uiAlert('No se pudo aceptar:\n\n'+(err.message||err)); }
+}
+async function rechazarCompartido(id){
+  if(!(await uiConfirm('¿Rechazar este gasto compartido?'))) return;
+  try{ await db.updateCompartido(id,{estado:'rechazado',destinatario_id:state.user.id}); await refreshData(); render(); toast('Compartido rechazado'); }
+  catch(err){ uiAlert('No se pudo:\n\n'+(err.message||err)); }
+}
+async function delCompartido(id){
+  if(!(await uiConfirm('¿Eliminar este compartido del listado? (No borra el movimiento que ya se creó)'))) return;
+  try{ await db.deleteCompartido(id); await refreshData(); render(); toast('Compartido eliminado'); }
+  catch(err){ uiAlert('No se pudo:\n\n'+(err.message||err)); }
+}
+function pendienteCard(c){
+  const miPorcion=Number(c.monto_total)*Number(c.porcentaje)/100;
+  return `<div class="card" style="margin-bottom:10px;border:1.5px solid var(--amber)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:15px">${c.descripcion||'Gasto compartido'}</div>
+        <div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px">De <b>${c.creador_nombre||c.creador_email}</b> · total ${fmt(c.monto_total)} · te toca el ${c.porcentaje}%${c.fecha_vencimiento?' · vence '+fmtDate(c.fecha_vencimiento):''}</div>
+      </div>
+      <div class="mv-amt txt-out" style="white-space:nowrap">${fmt(miPorcion)}</div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-next" style="flex:1;padding:11px;border-radius:11px;font-weight:700" onclick="aceptarCompartido('${c.id}')">Aceptar</button>
+      <button class="btn-back" style="flex:1;padding:11px;border-radius:11px;font-weight:700" onclick="rechazarCompartido('${c.id}')">Rechazar</button>
+    </div>
+  </div>`;
+}
+function compRow(c){
+  const badge = c.estado==='aceptado'?'<span class="chip" style="background:var(--emerald-soft);color:var(--emerald)">Aceptado</span>'
+    : c.estado==='rechazado'?'<span class="chip" style="background:var(--coral-soft);color:var(--coral)">Rechazado</span>'
+    : '<span class="chip share">Pendiente</span>';
+  return `<div class="mv">
+    <div class="mv-body">
+      <div class="t">${c.descripcion||'Gasto compartido'}</div>
+      <div class="s">Con ${c.destinatario_email} · ${c.porcentaje}% · ${fmt(c.monto_total)} ${badge}</div>
+    </div>
+    <button class="icon-btn" style="color:var(--ink-faint)" onclick="delCompartido('${c.id}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+  </div>`;
+}
+function cfgCompartidos(){
+  const recibidos=misPendientes();
+  const creados=compartidosCreados();
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><h3>Gastos compartidos</h3></div>
+    ${recibidos.length? `<div style="font-size:12.5px;font-weight:700;color:#9a6913;margin-bottom:8px">⏳ Pendientes de tu respuesta</div>`+recibidos.map(pendienteCard).join('') : ''}
+    <div style="font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:${recibidos.length?'14px':'2px'} 0 8px">Los que vos compartiste</div>
+    ${creados.length? creados.map(compRow).join('') : '<p style="color:var(--ink-faint);font-size:13px;margin:0">Todavía no compartiste ningún gasto. Cargá un gasto, elegí "Compartido" y poné el mail de la otra persona.</p>'}
+  </div>`;
+}
+
 /* ---- CONFIG ---- */
 function renderConfig(){
   const ing=state.categorias.filter(c=>c.tipo==='ingreso');
   const gas=state.categorias.filter(c=>c.tipo==='gasto');
   document.getElementById('content').innerHTML=`
     <div class="view-title">Configuración</div>
+
+    ${cfgCompartidos()}
 
     <div class="card" style="margin-bottom:14px">
       <div class="card-h"><h3>Categorías de gasto</h3></div>
@@ -1239,7 +1342,7 @@ const WIZ_STEPS=5;
 function openWizard(){
   wiz={ step:0, tipo:null, importe:'', categoria_id:null, ambito:'individual',
         fecha:todayISO(), modo:'unico', frecuencia:'unico', fecha_vencimiento:'',
-        comentario:'', foto:null };
+        comentario:'', foto:null, partnerEmail:'', porcentaje:'50' };
   document.getElementById('sheetBg').classList.add('show');
   renderWiz();
 }
@@ -1296,6 +1399,14 @@ function renderWiz(){
           <button class="${wiz.ambito==='individual'?'sel':''}" onclick="wizSet('ambito','individual')">👤 Individual</button>
           <button class="${wiz.ambito==='compartido'?'sel':''}" onclick="wizSet('ambito','compartido')">👥 Compartido</button>
         </div>
+        ${wiz.ambito==='compartido' && wiz.tipo==='gasto' ? `
+        <div style="background:var(--amber-soft);border-radius:12px;padding:13px;margin-top:10px">
+          <label style="margin-top:0">Mail de la otra persona</label>
+          <input type="email" inputmode="email" placeholder="pareja@email.com" value="${wiz.partnerEmail}" oninput="wiz.partnerEmail=this.value">
+          <label>¿Qué % asume la otra persona?</label>
+          <input type="number" min="1" max="100" placeholder="50" value="${wiz.porcentaje}" oninput="wiz.porcentaje=this.value">
+          <div style="font-size:12px;color:var(--ink-soft);margin-top:8px;line-height:1.4">Le va a llegar para <b>aceptar o rechazar</b>. Si acepta, se suma a sus movimientos. Si dejás el mail vacío, queda solo como etiqueta "compartido".</div>
+        </div>` : ''}
         <label>Fecha</label>
         <input type="date" value="${wiz.fecha}" oninput="wiz.fecha=this.value">
         <label>Tipo de pago</label>
@@ -1378,14 +1489,33 @@ function wizSummary(){
 async function saveWiz(){
   const n=document.getElementById('wizNext'); n.disabled=true; n.textContent='Guardando...';
   try{
-    await db.createMovimiento({
-      tipo:wiz.tipo, importe:Number(wiz.importe), categoria_id:wiz.categoria_id,
-      comentario:wiz.comentario||null, ambito:wiz.ambito,
-      es_fijo: wiz.modo==='fijo', frecuencia: wiz.modo==='fijo'?wiz.frecuencia:'unico',
-      fecha:wiz.fecha, fecha_vencimiento:wiz.fecha_vencimiento||null, foto:wiz.foto||null
-    });
+    const esCompartidoReal = wiz.tipo==='gasto' && wiz.ambito==='compartido' && wiz.partnerEmail && wiz.partnerEmail.includes('@');
+    if(esCompartidoReal){
+      const pct=Math.min(100,Math.max(1,Math.round(Number(wiz.porcentaje))||50));
+      const total=Number(wiz.importe);
+      const desc=wiz.comentario||catName(wiz.categoria_id);
+      const comp=await db.createCompartido({
+        destinatario_email:wiz.partnerEmail.trim().toLowerCase(),
+        descripcion:desc, monto_total:total, porcentaje:pct,
+        categoria_nombre:catName(wiz.categoria_id),
+        fecha:wiz.fecha, fecha_vencimiento:wiz.fecha_vencimiento||null, estado:'pendiente'
+      });
+      await db.createMovimiento({
+        tipo:'gasto', importe: total*(100-pct)/100, categoria_id:wiz.categoria_id,
+        comentario: desc+` (compartido ${pct}% con ${wiz.partnerEmail.trim()})`, ambito:'compartido',
+        es_fijo: wiz.modo==='fijo', frecuencia: wiz.modo==='fijo'?wiz.frecuencia:'unico',
+        fecha:wiz.fecha, fecha_vencimiento:wiz.fecha_vencimiento||null, foto:wiz.foto||null, compartido_id:comp.id
+      });
+    } else {
+      await db.createMovimiento({
+        tipo:wiz.tipo, importe:Number(wiz.importe), categoria_id:wiz.categoria_id,
+        comentario:wiz.comentario||null, ambito:wiz.ambito,
+        es_fijo: wiz.modo==='fijo', frecuencia: wiz.modo==='fijo'?wiz.frecuencia:'unico',
+        fecha:wiz.fecha, fecha_vencimiento:wiz.fecha_vencimiento||null, foto:wiz.foto||null
+      });
+    }
     await refreshData(); closeWizard(); render();
-    toast(wiz.tipo==='ingreso'?'Ingreso cargado ✓':'Gasto cargado ✓');
+    toast(wiz.tipo==='ingreso'?'Ingreso cargado ✓':(esCompartidoReal?'Compartido enviado ✓':'Gasto cargado ✓'));
   }catch(err){
     uiAlert('No se pudo guardar:\n\n'+(err.message||err)+'\n\nVerificá el schema.sql en Supabase y que tengas sesión iniciada.');
     n.disabled=false; n.textContent='Guardar';
