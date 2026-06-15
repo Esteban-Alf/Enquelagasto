@@ -409,6 +409,7 @@ input,select,textarea{font-family:inherit;font-size:16px}
 </div>
 
 <div id="toast"></div>
+<input type="file" id="mpFile" accept="application/pdf,.pdf" style="display:none">
 
 <div class="sheet-bg" id="modalBg" style="align-items:center;z-index:95">
   <div class="card" id="modalCard" style="max-width:440px;width:calc(100% - 32px);border-radius:20px;padding:0"></div>
@@ -537,6 +538,15 @@ const db = {
       if(error) throw error; return data;
     }
     const m=demo.movimientos.find(x=>x.id===id); if(m) Object.assign(m,patch); return m;
+  },
+  async createMovimientosBulk(rows){
+    if(USE_SUPABASE){
+      const u=await this.currentUser();
+      const payload=rows.map(r=>({...r,user_id:u.id}));
+      const {data,error}=await sb.from('movimientos').insert(payload).select();
+      if(error) throw error; return data;
+    }
+    rows.forEach(r=>demo.movimientos.unshift({id:uid(),...r})); return rows;
   },
   async listTarjetas(){
     if(USE_SUPABASE){ const {data,error}=await sb.from('tarjetas').select('*').order('created_at'); if(error) throw error; return data; }
@@ -931,7 +941,13 @@ function chartIngGas(){
 function renderMovimientos(){
   const movs=filteredMovs();
   document.getElementById('content').innerHTML=`
-    <div class="view-title">Movimientos</div>
+    <div class="view-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span>Movimientos</span>
+      <button class="chip" style="cursor:pointer;background:var(--emerald);color:#fff;padding:9px 14px;font-size:13px;display:flex;align-items:center;gap:6px" onclick="openImport()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Importar
+      </button>
+    </div>
     <div class="controls-row">${segAmbito()}</div>
     ${chartIngGas()}
     <div class="controls-row">${segPeriodo()}</div>
@@ -1272,6 +1288,136 @@ function cfgCompartidos(){
     <div style="font-size:12.5px;font-weight:700;color:var(--ink-soft);margin:${recibidos.length?'14px':'2px'} 0 8px">Los que vos compartiste</div>
     ${creados.length? creados.map(compRow).join('') : '<p style="color:var(--ink-faint);font-size:13px;margin:0">Todavía no compartiste ningún gasto. Cargá un gasto, elegí "Compartido" y poné el mail de la otra persona.</p>'}
   </div>`;
+}
+
+/* =========================================================
+   IMPORTAR DE MERCADO PAGO (PDF)
+   ========================================================= */
+function loadPdfJs(){
+  return new Promise((resolve,reject)=>{
+    if(window.pdfjsLib){ resolve(window.pdfjsLib); return; }
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'; resolve(window.pdfjsLib); }catch(e){ reject(e); } };
+    s.onerror=()=>reject(new Error('No se pudo cargar el lector de PDF (revisá tu conexión).'));
+    document.head.appendChild(s);
+  });
+}
+async function extractPdfText(file){
+  const lib=await loadPdfJs();
+  const buf=await file.arrayBuffer();
+  const pdf=await lib.getDocument({data:buf}).promise;
+  let text='';
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const c=await page.getTextContent();
+    text+=c.items.map(i=>i.str).join(' ')+' ';
+  }
+  return text;
+}
+function parseMontoAR(s){ return parseFloat(s.replace(/\./g,'').replace(',','.')); }
+function parseMercadoPago(text){
+  const cut=text.search(/EN D[ÓO]LARES/i);
+  const pesos = cut>0? text.slice(0,cut) : text;
+  const re=/(\d{2}-\d{2}-\d{4})\s+(.+?)\s+(\d{9,})\s+\$\s*(-?[\d.]+,\d{2})\s+\$\s*[\d.]+,\d{2}/g;
+  const rows=[]; let m;
+  while((m=re.exec(pesos))){
+    const fechaRaw=m[1], descRaw=m[2], opId=m[3], valorRaw=m[4];
+    const desc=descRaw.replace(/\s+/g,' ').trim();
+    const valor=parseMontoAR(valorRaw);
+    if(!isFinite(valor)||valor===0) continue;
+    const [d,mo,y]=fechaRaw.split('-');
+    rows.push({ ext_id:opId, fecha:`${y}-${mo}-${d}`, descripcion:desc, valor });
+  }
+  return rows;
+}
+
+let importRows=[];
+function openImport(){ document.getElementById('mpFile').click(); }
+document.getElementById('mpFile').addEventListener('change', async function(){
+  const file=this.files[0]; this.value='';
+  if(!file) return;
+  showLoadingModal('Leyendo el PDF de Mercado Pago…');
+  try{
+    const text=await extractPdfText(file);
+    const rows=parseMercadoPago(text);
+    if(!rows.length){ closeModal(null); uiAlert('No detecté movimientos en pesos en ese PDF.\n\nAsegurate de subir el resumen de cuenta de Mercado Pago (el PDF mensual).'); return; }
+    importRows=rows;
+    renderImportPreview();
+  }catch(err){ closeModal(null); uiAlert('No se pudo leer el PDF:\n\n'+(err.message||err)); }
+});
+function showLoadingModal(msg){
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`<div class="m-scroll" style="padding:40px 22px;text-align:center">
+    <div style="font-size:30px;margin-bottom:10px">⏳</div>
+    <div style="font-weight:600;color:var(--ink-soft)">${msg}</div>
+  </div>`;
+  document.getElementById('modalBg').classList.add('show');
+}
+function renderImportPreview(){
+  const existentes=new Set(state.movimientos.filter(m=>m.ext_id).map(m=>String(m.ext_id)));
+  importRows.forEach(r=>{ r._dup=existentes.has(String(r.ext_id)); r._sel = !r._dup && r.descripcion.toLowerCase()!=='rendimientos'; });
+  const card=document.getElementById('modalCard');
+  card.innerHTML=`
+    <div class="m-scroll">
+      <h3>Importar de Mercado Pago</h3>
+      <p style="color:var(--ink-soft);font-size:13px;margin:0 0 10px">Detecté <b>${importRows.length}</b> movimientos. Destildá los que no quieras importar.</p>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="chip" style="cursor:pointer" onclick="impSelect('all')">Todos</button>
+        <button class="chip" style="cursor:pointer" onclick="impSelect('none')">Ninguno</button>
+        <button class="chip" style="cursor:pointer" onclick="impSelect('norend')">Sin rendimientos</button>
+      </div>
+      <div id="impList">${importRows.map((r,i)=>impRow(r,i)).join('')}</div>
+    </div>
+    <div class="m-foot">
+      <button class="btn-back" onclick="closeModal(null)">Cancelar</button>
+      <button class="btn-next" id="impBtn" onclick="confirmImport()">Importar</button>
+    </div>`;
+  document.getElementById('modalBg').classList.add('show');
+  updateImpCount();
+}
+function impRow(r,i){
+  const ing=r.valor>0;
+  return `<label style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line-soft);${r._dup?'opacity:.5':''}">
+    <input type="checkbox" data-i="${i}" ${r._sel?'checked':''} ${r._dup?'disabled':''} onchange="importRows[${i}]._sel=this.checked;updateImpCount()" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--emerald)">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.descripcion}</div>
+      <div style="font-size:11.5px;color:var(--ink-faint)">${fmtDate(r.fecha)} · ${ing?'Ingreso':'Gasto'}${r._dup?' · ya importado':''}</div>
+    </div>
+    <div class="num ${ing?'txt-in':'txt-out'}" style="font-weight:700;font-size:13.5px;white-space:nowrap">${ing?'+':'−'}${fmt(Math.abs(r.valor))}</div>
+  </label>`;
+}
+function impSelect(mode){
+  importRows.forEach(r=>{
+    if(r._dup){ r._sel=false; return; }
+    if(mode==='all') r._sel=true;
+    else if(mode==='none') r._sel=false;
+    else if(mode==='norend') r._sel = r.descripcion.toLowerCase()!=='rendimientos';
+  });
+  renderImportPreview();
+}
+function updateImpCount(){
+  const n=importRows.filter(r=>r._sel).length;
+  const b=document.getElementById('impBtn');
+  if(b){ b.textContent=`Importar (${n})`; b.disabled=n===0; }
+}
+async function confirmImport(){
+  const sel=importRows.filter(r=>r._sel);
+  if(!sel.length) return;
+  const b=document.getElementById('impBtn'); b.disabled=true; b.textContent='Importando…';
+  const movs=sel.map(r=>({
+    tipo: r.valor>0?'ingreso':'gasto', importe:Math.abs(r.valor), categoria_id:null,
+    comentario:r.descripcion, ambito:'individual', es_fijo:false, frecuencia:'unico',
+    fecha:r.fecha, fecha_vencimiento:null, foto:null, ext_id:String(r.ext_id)
+  }));
+  try{
+    await db.createMovimientosBulk(movs);
+    await refreshData(); closeModal(null); render();
+    toast(`${movs.length} movimientos importados ✓`);
+  }catch(err){
+    uiAlert('No se pudieron importar:\n\n'+(err.message||err)+'\n\nSi dice algo de "ext_id", corré de nuevo el schema.sql actualizado.');
+    b.disabled=false; updateImpCount();
+  }
 }
 
 /* ---- CONFIG ---- */
